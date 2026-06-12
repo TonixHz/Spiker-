@@ -423,6 +423,15 @@ button { cursor: pointer; border: none; border-radius: 3px; font-weight: 600; tr
 .chat-msg.msg-spect .msg-author { color: #95a5a6; }
 .chat-msg.msg-system { color: #f1c40f; font-style: italic; }
 
+/* Team chat */
+.chat-msg.msg-team { background: rgba(255,255,255,0.04); border-left: 2px solid; padding-left: 5px; border-radius: 2px; }
+.chat-msg.msg-team-red  { border-color: #e74c3c; }
+.chat-msg.msg-team-red  .msg-author { color: #e74c3c; }
+.chat-msg.msg-team-red  .msg-team-label { color: #e74c3c; font-weight: 700; font-size: 0.72rem; }
+.chat-msg.msg-team-blue { border-color: #2980b9; }
+.chat-msg.msg-team-blue .msg-author { color: #3498db; }
+.chat-msg.msg-team-blue .msg-team-label { color: #3498db; font-weight: 700; font-size: 0.72rem; }
+
 #chat-input-row {
     border-top: 1px solid #333;
     display: flex;

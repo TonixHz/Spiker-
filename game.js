@@ -103,6 +103,7 @@ let matchTimeLeft = 180;
 let timerInterval = null;
 let scoringLocked = false;   // brief lock after each point
 let gameLoopRAF   = null;
+let lastTickTime  = 0;   // timestamp of last received game_tick (for extrapolation)
 
 // ============================================================
 //  HELPERS
@@ -140,6 +141,29 @@ function addChatMsg(author, text, team, system) {
 
 function sysMsg(txt) { addChatMsg('', txt, 'spect', true); }
 
+// Team chat — only visible to players on the same team
+function addTeamChatMsg(author, text, team) {
+    const d = document.createElement('div');
+    d.className = `chat-msg msg-team msg-team-${team}`;
+    d.innerHTML = `<span class="msg-team-label">[Team]</span> <span class="msg-author">${escapeHTML(author)}:</span> ${escapeHTML(text)}`;
+    chatLog.appendChild(d);
+    chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+// Host broadcasts team chat — only sends to players on same team
+function broadcastTeamChat(author, text, team) {
+    if (!isHost) return;
+    // Show to host if on same team
+    const hostTeam = roomState.players[myPeerId]?.team;
+    if (hostTeam === team) addTeamChatMsg(author, text, team);
+    // Send only to guests on same team
+    for (const [pid, conn] of Object.entries(guestConns)) {
+        if (roomState.players[pid]?.team === team) {
+            try { conn.send({ type: 'team_chat', author, text, team }); } catch(e) {}
+        }
+    }
+}
+
 function broadcastChat(author, text, team) {
     if (!isHost) return;
     const d = { type: 'chat', author, text, team };
@@ -147,12 +171,83 @@ function broadcastChat(author, text, team) {
     addChatMsg(author, text, team, false);
 }
 
+// ============================================================
+//  LOCAL PLAYER SETTINGS (handicap, extrapolation)
+// ============================================================
+let myHandicap      = parseInt(localStorage.getItem('spiker_handicap')      || '0');
+let myExtrapolation = parseInt(localStorage.getItem('spiker_extrapolation') || '0');
+
+// ============================================================
+//  COMMAND HANDLER  (local — never sent to host)
+// ============================================================
+function handleCommand(cmd) {
+    const parts = cmd.slice(1).trim().split(/\s+/);
+    const name  = parts[0].toLowerCase();
+
+    switch (name) {
+
+        case 'handicap': {
+            const v = parseInt(parts[1]);
+            if (isNaN(v) || v < 0 || v > 100) { sysMsg('Usage: /handicap 0-100'); break; }
+            myHandicap = v;
+            localStorage.setItem('spiker_handicap', v);
+            sysMsg(`Handicap set to ${v}. Takes effect when next match starts.`);
+            break;
+        }
+
+        case 'extrapolation': {
+            const v = parseInt(parts[1]);
+            if (isNaN(v) || v < 0 || v > 100) { sysMsg('Usage: /extrapolation 0-100'); break; }
+            myExtrapolation = v;
+            localStorage.setItem('spiker_extrapolation', v);
+            sysMsg(`Extrapolation set to ${v}ms.`);
+            break;
+        }
+
+        case 'ping': {
+            const p = roomState.players[myPeerId]?.ping ?? 0;
+            sysMsg(`Your ping: ${p}ms | Handicap: ${myHandicap} | Extrapolation: ${myExtrapolation}ms`);
+            break;
+        }
+
+        case 'help': {
+            sysMsg('Commands: /handicap /extrapolation /ping /help');
+            sysMsg('Team chat: start message with "t " (e.g. t hola)');
+            break;
+        }
+
+        default:
+            sysMsg(`Unknown command: /${name}. Type /help for list.`);
+    }
+}
+
+// ============================================================
+//  CHAT INPUT — commands / team chat / global chat
+// ============================================================
 chatInput.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     const txt = chatInput.value.trim();
     if (!txt) return;
     chatInput.value = '';
+
+    // Local commands — never sent to network
+    if (txt.startsWith('/')) { handleCommand(txt); return; }
+
     const myTeam = roomState.players[myPeerId]?.team || 'spect';
+
+    // Team chat: message starts with "t " (lowercase t + space)
+    if (/^t /i.test(txt) && myTeam !== 'spect') {
+        const teamText = txt.slice(2).trim();
+        if (!teamText) return;
+        if (isHost) {
+            broadcastTeamChat(myUsername, teamText, myTeam);
+        } else {
+            hostConn?.send({ type: 'team_chat_request', text: teamText });
+        }
+        return;
+    }
+
+    // Global chat
     if (isHost) {
         broadcastChat(myUsername, txt, myTeam);
     } else {
@@ -263,6 +358,14 @@ peer.on('connection', conn => {
             case 'chat_request': {
                 const sender = roomState.players[conn.peer];
                 if (sender) broadcastChat(sender.name, data.text, sender.team);
+                break;
+            }
+
+            case 'team_chat_request': {
+                const sender = roomState.players[conn.peer];
+                if (sender && sender.team !== 'spect') {
+                    broadcastTeamChat(sender.name, data.text, sender.team);
+                }
                 break;
             }
 
@@ -411,12 +514,17 @@ function joinRoom(hostId) {
                 ball          = data.ball;
                 scores        = data.scores;
                 matchTimeLeft = data.timeLeft;
+                lastTickTime  = performance.now();
                 updateScoreUI();
                 dbg(`GAME TICK RECEIVED — players: ${Object.keys(physPlayers).length}, ball: (${Math.round(data.ball.x)},${Math.round(data.ball.y)})`);
                 break;
 
             case 'chat':
                 addChatMsg(data.author, data.text, data.team, false);
+                break;
+
+            case 'team_chat':
+                addTeamChatMsg(data.author, data.text, data.team);
                 break;
 
             case 'kicked':
@@ -634,9 +742,28 @@ window.addEventListener('keyup', e => {
     sendKeys();
 });
 
+// ============================================================
+//  HANDICAP — input delay buffer (like HaxBall)
+// ============================================================
+const handicapQueue = [];   // [{ keys, sendAt }]
+
 function sendKeys() {
     if (!isHost && hostConn) {
-        hostConn.send({ type: 'keys', keys: { ...localKeys } });
+        const snapshot = { ...localKeys };
+        if (myHandicap <= 0) {
+            hostConn.send({ type: 'keys', keys: snapshot });
+        } else {
+            handicapQueue.push({ keys: snapshot, sendAt: performance.now() + myHandicap });
+        }
+    }
+}
+
+function flushHandicapQueue() {
+    if (!hostConn || isHost) return;
+    const now = performance.now();
+    while (handicapQueue.length && handicapQueue[0].sendAt <= now) {
+        const item = handicapQueue.shift();
+        try { hostConn.send({ type: 'keys', keys: item.keys }); } catch(e) {}
     }
 }
 
@@ -847,6 +974,7 @@ function gameLoop() {
     }
 
     renderGame();
+    if (!isHost) flushHandicapQueue();
     gameLoopRAF = requestAnimationFrame(gameLoop);
 }
 
@@ -854,7 +982,7 @@ function gameLoop() {
 function serializePlayers() {
     const out = {};
     for (const [id, pl] of Object.entries(physPlayers)) {
-        out[id] = { x: pl.x, y: pl.y, team: pl.team, name: pl.name };
+        out[id] = { x: pl.x, y: pl.y, vx: pl.vx, vy: pl.vy, onGround: pl.onGround, team: pl.team, name: pl.name };
     }
     return out;
 }
@@ -886,20 +1014,32 @@ function renderGame() {
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(CANVAS_W, GROUND_Y); ctx.stroke();
 
-    // Players
-    const source = isHost ? physPlayers : physPlayers;   // clients receive physPlayers via tick
+    // Players — apply extrapolation for guest
+    const source = physPlayers;
     const playerCount = Object.keys(source).length;
-    if (playerCount > 0 && matchActive && Math.random() < 0.01) {   // ~1% of frames to avoid spam
+    if (playerCount > 0 && matchActive && Math.random() < 0.01) {
         dbg(`PLAYERS RENDERED: ${playerCount} — ${Object.values(source).map(p=>p.name).join(', ')}`);
     }
+
+    // Extrapolation factor: how many seconds ahead to project remote objects
+    const extraMs = isHost ? 0 : myExtrapolation;
+    const extraSec = extraMs / 1000;
+
     for (const [id, pl] of Object.entries(source)) {
         const c = TEAM_COLORS[pl.team] || TEAM_COLORS.red;
         const isMe = id === myPeerId;
-        drawPlayer(pl, c.fill, c.stroke, pl.name || '?', isMe);
+        // For remote players (not self), extrapolate position using stored velocity
+        const drawPl = (extraSec > 0 && !isMe && pl.vx !== undefined)
+            ? { ...pl, x: pl.x + (pl.vx || 0) * extraSec * 60, y: Math.min(pl.y + (pl.vy || 0) * extraSec * 60, GROUND_Y - PLAYER_R) }
+            : pl;
+        drawPlayer(drawPl, c.fill, c.stroke, pl.name || '?', isMe);
     }
 
-    // Ball
-    drawBall();
+    // Ball — extrapolate for guest
+    const drawBallObj = (extraSec > 0 && !isHost)
+        ? { ...ball, x: ball.x + ball.vx * extraSec * 60, y: Math.min(ball.y + ball.vy * extraSec * 60, GROUND_Y - BALL_R) }
+        : ball;
+    drawBall(drawBallObj);
 }
 
 function drawPlayer(pl, bodyColor, strokeColor, label, isMe) {
@@ -928,22 +1068,23 @@ function drawPlayer(pl, bodyColor, strokeColor, label, isMe) {
     ctx.fillText(label.slice(0, 6), pl.x, pl.y);
 }
 
-function drawBall() {
-    const shadowY     = Math.min(ball.y + BALL_R + 4, GROUND_Y - 2);
-    const shadowScale = Math.max(0.1, 1 - (GROUND_Y - ball.y) / CANVAS_H);
+function drawBall(b) {
+    b = b || ball;
+    const shadowY     = Math.min(b.y + BALL_R + 4, GROUND_Y - 2);
+    const shadowScale = Math.max(0.1, 1 - (GROUND_Y - b.y) / CANVAS_H);
     ctx.beginPath();
-    ctx.ellipse(ball.x, shadowY, BALL_R*0.7*shadowScale, 4*shadowScale, 0, 0, Math.PI*2);
+    ctx.ellipse(b.x, shadowY, BALL_R*0.7*shadowScale, 4*shadowScale, 0, 0, Math.PI*2);
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fill();
 
-    const g = ctx.createRadialGradient(ball.x-4, ball.y-4, 2, ball.x, ball.y, BALL_R);
+    const g = ctx.createRadialGradient(b.x-4, b.y-4, 2, b.x, b.y, BALL_R);
     g.addColorStop(0, '#fff');
     g.addColorStop(0.4, '#f1c40f');
     g.addColorStop(1, '#d4ac0d');
-    ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI*2);
+    ctx.beginPath(); ctx.arc(b.x, b.y, BALL_R, 0, Math.PI*2);
     ctx.fillStyle = g; ctx.fill();
     ctx.strokeStyle = '#7d6608'; ctx.lineWidth = 1.5; ctx.stroke();
 
     ctx.strokeStyle = 'rgba(100,60,0,0.4)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_R, 0.3, 0.3+Math.PI); ctx.stroke();
-    ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_R, 0.8+Math.PI*0.5, 0.8+Math.PI*1.5); ctx.stroke();
+    ctx.beginPath(); ctx.arc(b.x, b.y, BALL_R, 0.3, 0.3+Math.PI); ctx.stroke();
+    ctx.beginPath(); ctx.arc(b.x, b.y, BALL_R, 0.8+Math.PI*0.5, 0.8+Math.PI*1.5); ctx.stroke();
 }
