@@ -231,6 +231,8 @@ peer.on('connection', conn => {
         // If match already running, send a start signal + current tick
         if (matchActive) {
             conn.send({ type: 'match_started', roomState });
+            // Note: guest joins as spectator mid-match. physPlayers entry will be created on next resetPhysics().
+            dbg(`PLAYER CONNECTED mid-match as spectator: ${guestName}`);
         }
 
         broadcastState();
@@ -266,7 +268,9 @@ peer.on('connection', conn => {
 
             case 'change_team_request':
                 if (roomState.players[conn.peer]) {
+                    const prevTeam = roomState.players[conn.peer].team;
                     roomState.players[conn.peer].team = data.team;
+                    dbg(`TEAM CHANGED: ${roomState.players[conn.peer].name} ${prevTeam} → ${data.team}`);
                     broadcastState();
                 }
                 break;
@@ -408,6 +412,7 @@ function joinRoom(hostId) {
                 scores        = data.scores;
                 matchTimeLeft = data.timeLeft;
                 updateScoreUI();
+                dbg(`GAME TICK RECEIVED — players: ${Object.keys(physPlayers).length}, ball: (${Math.round(data.ball.x)},${Math.round(data.ball.y)})`);
                 break;
 
             case 'chat':
@@ -426,6 +431,7 @@ function joinRoom(hostId) {
             case 'match_ended':
                 matchActive = false;
                 sysMsg(`Match over! ${data.winner.toUpperCase()} wins (${data.scores.red}–${data.scores.blue})`);
+                dbg(`MATCH ENDED — winner: ${data.winner}, scores: ${data.scores.red}-${data.scores.blue}`);
                 setTimeout(() => innerLobby.classList.remove('hidden'), 2500);
                 break;
         }
@@ -445,8 +451,11 @@ function enterGameScreen() {
     innerLobby.classList.remove('hidden');
     updateLobbyUI();
 
-    if (isHost && !gameLoopRAF) {
+    // Both host and guest need the render loop.
+    // Host uses it to simulate + render; guest uses it only to render (state comes from game_tick).
+    if (!gameLoopRAF) {
         gameLoopRAF = requestAnimationFrame(gameLoop);
+        dbg(`GAME LOOP STARTED (${isHost ? 'host' : 'guest'})`);
     }
 }
 
@@ -534,6 +543,11 @@ document.getElementById('btn-lock').addEventListener('click', () => { if (isHost
 document.getElementById('btn-move-right').addEventListener('click', () => moveMe('red'));
 document.getElementById('btn-move-left').addEventListener('click',  () => moveMe('blue'));
 
+// Team header buttons (clicking "Red" or "Blue" label also switches team)
+document.querySelectorAll('.hax-team-btn').forEach(btn => {
+    btn.addEventListener('click', () => moveMe(btn.dataset.team));
+});
+
 function moveMe(team) {
     if (!myPeerId || !roomState.players[myPeerId]) return;
     const newTeam = roomState.players[myPeerId].team === team ? 'spect' : team;
@@ -546,6 +560,9 @@ function moveMe(team) {
 }
 
 document.getElementById('btn-leave-room').addEventListener('click', () => { if (myRoomRef) remove(myRoomRef); location.reload(); });
+
+document.getElementById('btn-rec').addEventListener('click', () => { sysMsg('Recording not implemented yet.'); });
+document.getElementById('btn-pick-stadium').addEventListener('click', () => { sysMsg('Stadium selection not implemented yet.'); });
 
 document.getElementById('btn-copy-link').addEventListener('click', () => {
     const url = `${location.origin}${location.pathname}#${myPeerId}`;
@@ -781,6 +798,7 @@ function endMatch(winner) {
     const data = { type: 'match_ended', winner, scores };
     sendAll(data);
     sysMsg(`🏆 ${winner.toUpperCase()} wins! (${scores.red}–${scores.blue})`);
+    dbg(`MATCH ENDED (host) — winner: ${winner}, scores: ${scores.red}-${scores.blue}`);
     roomState.matchStarted = false;
     broadcastState();
     setTimeout(() => innerLobby.classList.remove('hidden'), 2500);
@@ -870,6 +888,10 @@ function renderGame() {
 
     // Players
     const source = isHost ? physPlayers : physPlayers;   // clients receive physPlayers via tick
+    const playerCount = Object.keys(source).length;
+    if (playerCount > 0 && matchActive && Math.random() < 0.01) {   // ~1% of frames to avoid spam
+        dbg(`PLAYERS RENDERED: ${playerCount} — ${Object.values(source).map(p=>p.name).join(', ')}`);
+    }
     for (const [id, pl] of Object.entries(source)) {
         const c = TEAM_COLORS[pl.team] || TEAM_COLORS.red;
         const isMe = id === myPeerId;
