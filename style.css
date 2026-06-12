@@ -1,0 +1,465 @@
+/* === RESET & BASE === */
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+body {
+    background-color: #4a7c4e;
+    background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(0,0,0,0.07) 0px, rgba(0,0,0,0.07) 2px,
+        transparent 2px, transparent 12px
+    );
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    color: #fff;
+}
+
+.hidden { display: none !important; }
+
+/* === OVERLAYS === */
+.hax-overlay {
+    position: fixed; inset: 0;
+    display: flex; justify-content: center; align-items: center;
+    z-index: 500;
+    background: transparent;
+}
+
+/* === MODAL (Login / Create Room) === */
+.hax-modal {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-top: 3px solid #e74c3c;
+    border-radius: 4px;
+    padding: 28px 32px;
+    width: 380px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+}
+
+.hax-logo {
+    font-size: 2.8rem;
+    font-weight: 900;
+    color: #ff6b6b;
+    text-shadow: 3px 3px 0 #c0392b, -1px -1px 0 #fff2;
+    text-align: center;
+    margin-bottom: 16px;
+    letter-spacing: -1px;
+}
+.hax-ball-icon { font-size: 2.2rem; vertical-align: middle; margin-left: 4px; }
+
+.hax-modal h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ddd;
+    margin-bottom: 18px;
+    border-bottom: 2px solid #e74c3c;
+    padding-bottom: 8px;
+}
+
+.hax-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.hax-input-row label {
+    min-width: 90px;
+    font-size: 0.9rem;
+    color: #bbb;
+}
+.hax-input-row input {
+    flex: 1;
+    background: #0d1117;
+    border: 1px solid #2980b9;
+    border-radius: 3px;
+    color: #fff;
+    padding: 7px 10px;
+    font-size: 0.95rem;
+    outline: none;
+}
+.hax-input-row input:focus { border-color: #5dade2; }
+
+.hax-toggle-row {
+    background: #2980b9;
+    color: #fff;
+    padding: 10px;
+    text-align: center;
+    border-radius: 3px;
+    cursor: pointer;
+    margin-bottom: 14px;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+}
+.hax-toggle-row:hover { background: #3498db; }
+
+.hax-modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+/* === BUTTONS === */
+button { cursor: pointer; border: none; border-radius: 3px; font-weight: 600; transition: filter 0.15s; }
+.hax-btn { padding: 9px 18px; font-size: 0.9rem; color: #fff; }
+.hax-btn:hover { filter: brightness(1.2); }
+.hax-btn:active { filter: brightness(0.9); }
+
+.hax-btn-blue  { background: #2980b9; }
+.hax-btn-green { background: #27ae60; }
+.hax-btn-gray  { background: #3d5060; }
+.hax-btn-red   { background: #c0392b; }
+.hax-small-btn { padding: 5px 10px; font-size: 0.78rem; }
+
+/* === ROOM LIST PANEL === */
+.hax-room-list-panel {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-top: 3px solid #e74c3c;
+    border-radius: 4px;
+    width: 680px;
+    max-width: 96vw;
+    padding: 18px 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.hax-room-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+.hax-room-list-header h2 { font-size: 1.4rem; color: #fff; }
+.hax-room-list-meta { font-size: 0.8rem; color: #999; }
+.hax-tip { font-size: 0.78rem; color: #aaa; margin-bottom: 10px; }
+
+.hax-room-table-header {
+    display: grid;
+    grid-template-columns: 1fr 70px 50px 80px;
+    font-size: 0.78rem;
+    color: #888;
+    padding: 4px 8px;
+    border-bottom: 1px solid #333;
+    margin-bottom: 4px;
+}
+.hax-room-list {
+    list-style: none;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 120px;
+    max-height: 300px;
+}
+.hax-empty-rooms { color: #666; padding: 12px 8px; font-size: 0.9rem; }
+
+.hax-room-item {
+    display: grid;
+    grid-template-columns: 1fr 70px 50px 80px;
+    align-items: center;
+    padding: 7px 8px;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    transition: background 0.1s;
+}
+.hax-room-item:hover { background: rgba(255,255,255,0.06); }
+.hax-room-item.selected { background: rgba(41,128,185,0.3); }
+.hax-room-item .room-name { color: #e0e0e0; }
+.hax-room-item .room-players { color: #bbb; text-align: center; }
+.hax-room-item .room-pass { color: #bbb; text-align: center; }
+.hax-room-item .room-dist { color: #bbb; display: flex; align-items: center; gap: 4px; }
+.flag-icon { font-size: 0.9rem; }
+
+.hax-lobby-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    justify-content: flex-end;
+}
+
+/* === GAME CONTAINER === */
+#game-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#game-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* === INNER LOBBY (HaxBall room panel) === */
+.hax-inner-lobby {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 20, 35, 0.97);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: auto;
+}
+
+.hax-inner-lobby-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #111;
+    border-bottom: 3px solid #e74c3c;
+    padding: 10px 16px;
+}
+.hax-room-title { font-size: 1.1rem; font-weight: 700; color: #fff; }
+.hax-inner-lobby-topbtns { display: flex; gap: 8px; }
+
+/* Teams layout */
+.hax-teams-row {
+    display: flex;
+    gap: 0;
+    flex: 1;
+    min-height: 260px;
+    padding: 12px;
+    gap: 10px;
+}
+
+.hax-team-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #0d1117;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.hax-team-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 8px;
+}
+.hax-team-red { background: rgba(192,57,43,0.4); border-bottom: 2px solid #c0392b; }
+.hax-team-blue { background: rgba(41,128,185,0.4); border-bottom: 2px solid #2980b9; }
+.hax-team-spect { background: rgba(60,60,60,0.5); border-bottom: 2px solid #555; text-align: center; color: #999; font-size: 0.85rem; padding: 6px; }
+
+.hax-team-btn {
+    background: none; border: none; color: inherit;
+    font-weight: 700; font-size: 1rem; cursor: pointer;
+    padding: 2px 6px;
+}
+.hax-team-red .hax-team-btn { color: #e74c3c; }
+.hax-team-blue .hax-team-btn { color: #3498db; }
+.hax-arrow-btn {
+    background: #2980b9; color: #fff; border: none;
+    padding: 3px 8px; border-radius: 2px; cursor: pointer; font-size: 0.8rem;
+}
+.hax-arrow-btn:hover { background: #3498db; }
+
+.hax-spect-col {
+    flex: 1.4;
+    display: flex;
+    flex-direction: column;
+    background: #0d1117;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.hax-player-list {
+    list-style: none;
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.hax-player-list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #ddd;
+    transition: background 0.1s;
+}
+.hax-player-list li:hover { background: rgba(255,255,255,0.07); }
+.hax-player-list li.is-admin { border-left: 3px solid #f1c40f; padding-left: 5px; }
+.player-ping { margin-left: auto; font-size: 0.7rem; color: #2ecc71; }
+
+.hax-spect-list li { color: #999; }
+
+/* Match settings */
+.hax-match-settings {
+    padding: 10px 12px;
+    border-top: 1px solid #222;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.hax-setting-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #bbb;
+}
+.hax-setting-row label { min-width: 80px; }
+.hax-setting-row input[type="number"] {
+    background: #0d1117;
+    border: 1px solid #333;
+    color: #fff;
+    padding: 3px 6px;
+    border-radius: 2px;
+    width: 60px;
+    font-size: 0.85rem;
+    outline: none;
+}
+.hax-setting-row span { color: #aaa; }
+
+.hax-start-btn {
+    margin: 10px 12px;
+    width: calc(100% - 24px);
+    padding: 10px;
+    font-size: 1rem;
+}
+
+/* Admin sidebar buttons */
+.hax-admin-btns {
+    position: absolute;
+    left: 12px;
+    top: 120px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 10;
+}
+.hax-admin-btns .hax-btn { width: 70px; text-align: center; padding: 7px 6px; font-size: 0.82rem; }
+
+.hax-controls-hint {
+    padding: 8px 16px;
+    background: #0a0f14;
+    border-top: 1px solid #222;
+    font-size: 0.75rem;
+    color: #666;
+    text-align: center;
+}
+.hax-controls-hint strong { color: #999; }
+
+/* === GAME HEADER / SCORE === */
+.game-header {
+    width: 808px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    padding: 6px 0;
+    position: relative;
+}
+#score-display {
+    font-size: 1.8rem;
+    font-weight: 900;
+    background: rgba(0,0,0,0.6);
+    padding: 4px 24px;
+    border-radius: 6px;
+    letter-spacing: 4px;
+    min-width: 120px;
+    text-align: center;
+}
+.game-timer {
+    font-size: 0.9rem;
+    color: #aaa;
+    background: rgba(0,0,0,0.4);
+    padding: 3px 10px;
+    border-radius: 4px;
+}
+
+/* === CANVAS === */
+#gameCanvas {
+    background-color: #2d5a27;
+    background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(0,0,0,0.06) 0px, rgba(0,0,0,0.06) 1px,
+        transparent 1px, transparent 14px
+    );
+    border: 3px solid #bdc3c7;
+    border-radius: 4px;
+    display: block;
+    box-shadow: 0 0 30px rgba(0,0,0,0.6);
+}
+
+/* === CHAT === */
+#chat-container {
+    width: 808px;
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid #333;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+}
+#chat-log {
+    height: 90px;
+    overflow-y: auto;
+    padding: 6px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: #444 transparent;
+}
+#chat-log::-webkit-scrollbar { width: 4px; }
+#chat-log::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+
+.chat-msg {
+    font-size: 0.8rem;
+    color: #ccc;
+    line-height: 1.3;
+}
+.chat-msg .msg-author { font-weight: 700; }
+.chat-msg.msg-red .msg-author { color: #e74c3c; }
+.chat-msg.msg-blue .msg-author { color: #3498db; }
+.chat-msg.msg-spect .msg-author { color: #95a5a6; }
+.chat-msg.msg-system { color: #f1c40f; font-style: italic; }
+
+#chat-input-row {
+    border-top: 1px solid #333;
+    display: flex;
+}
+#chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #ddd;
+    padding: 7px 10px;
+    font-size: 0.82rem;
+    outline: none;
+}
+#chat-input::placeholder { color: #555; }
+
+/* === CONTEXT MENU === */
+.hax-context-menu {
+    position: fixed;
+    background: #1a1a2e;
+    border: 1px solid #444;
+    border-top: 2px solid #e74c3c;
+    border-radius: 3px;
+    padding: 10px;
+    z-index: 1000;
+    width: 160px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.hax-cm-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #fff;
+    padding: 2px 4px 6px;
+    border-bottom: 1px solid #333;
+    margin-bottom: 2px;
+}
+.hax-cm-btn { width: 100%; text-align: left; padding: 7px 10px; font-size: 0.82rem; }
+.hax-context-menu hr { border: none; border-top: 1px solid #333; margin: 2px 0; }

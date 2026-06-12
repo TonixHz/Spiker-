@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spiker - P2P Volley</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+    <!-- ===== LOGIN ===== -->
+    <div id="login-container" class="hax-overlay">
+        <div class="hax-modal">
+            <div class="hax-logo">Spiker<span class="hax-ball-icon">🏐</span></div>
+            <h2>Choose nickname</h2>
+            <div class="hax-input-row">
+                <label>Nick:</label>
+                <input type="text" id="username-input" placeholder="Your name..." maxlength="15" autocomplete="off">
+            </div>
+            <button id="btn-login" class="hax-btn hax-btn-blue">Ok</button>
+        </div>
+    </div>
+
+    <!-- ===== PUBLIC LOBBY (ROOM LIST) ===== -->
+    <div id="lobby-container" class="hax-overlay hidden">
+        <div class="hax-room-list-panel">
+            <div class="hax-room-list-header">
+                <h2>Room list</h2>
+                <div class="hax-room-list-meta" id="room-count-display">0 players in 0 rooms</div>
+            </div>
+            <div class="hax-tip">Tip: Join rooms near you to reduce lag.</div>
+            <div class="hax-room-table-header">
+                <span class="col-name">Name</span>
+                <span class="col-players">Players</span>
+                <span class="col-pass">Pass</span>
+                <span class="col-dist">Distance</span>
+            </div>
+            <ul id="room-list" class="hax-room-list">
+                <li class="hax-empty-rooms">Loading rooms...</li>
+            </ul>
+            <div class="hax-lobby-actions">
+                <button id="btn-refresh" class="hax-btn hax-btn-gray">↻ Refresh</button>
+                <button id="btn-create-room-open" class="hax-btn hax-btn-green">+ Create Room</button>
+                <button id="btn-change-nick" class="hax-btn hax-btn-gray">↺ Change Nick</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== CREATE ROOM MODAL ===== -->
+    <div id="create-room-modal" class="hax-overlay hidden">
+        <div class="hax-modal">
+            <h2>Create room</h2>
+            <div class="hax-input-row">
+                <label>Room name:</label>
+                <input type="text" id="room-name" placeholder="My room" value="Picadito Volley">
+            </div>
+            <div class="hax-input-row">
+                <label>Password:</label>
+                <input type="text" id="room-password" placeholder="">
+            </div>
+            <div class="hax-input-row">
+                <label>Max players:</label>
+                <input type="number" id="room-max-players" value="12" min="2" max="30">
+            </div>
+            <div class="hax-toggle-row" id="btn-toggle-visibility">
+                Show in room list: <strong id="room-visibility-label">Yes</strong>
+            </div>
+            <input type="hidden" id="my-id" readonly>
+            <div class="hax-modal-actions">
+                <button id="btn-cancel-create" class="hax-btn hax-btn-blue">Cancel</button>
+                <button id="btn-host" class="hax-btn hax-btn-blue">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== GAME CONTAINER ===== -->
+    <div id="game-container" class="hidden">
+
+        <!-- Inner Lobby Overlay (ESC to toggle) -->
+        <div id="inner-lobby" class="hax-inner-lobby">
+            <div class="hax-inner-lobby-header">
+                <span id="room-title-display" class="hax-room-title">Room</span>
+                <div class="hax-inner-lobby-topbtns">
+                    <button id="btn-rec" class="hax-btn hax-btn-gray hax-small-btn">● Rec</button>
+                    <button id="btn-copy-link" class="hax-btn hax-btn-gray hax-small-btn">🔗 Link</button>
+                    <button id="btn-leave-room" class="hax-btn hax-btn-gray hax-small-btn">↪ Leave</button>
+                </div>
+            </div>
+
+            <div class="hax-teams-row">
+                <div class="hax-team-col" id="box-red" data-team="red">
+                    <div class="hax-team-header hax-team-red">
+                        <button class="hax-team-btn" data-team="red">Red</button>
+                        <button class="hax-arrow-btn" id="btn-move-right">▶</button>
+                    </div>
+                    <ul id="list-red" class="hax-player-list"></ul>
+                </div>
+
+                <div class="hax-spect-col">
+                    <div class="hax-team-header hax-team-spect">
+                        <span>Spectators</span>
+                    </div>
+                    <ul id="list-spect" class="hax-player-list hax-spect-list"></ul>
+
+                    <div class="hax-match-settings">
+                        <div class="hax-setting-row">
+                            <label>Time limit</label>
+                            <input type="number" id="time-limit" value="3" min="0" max="99">
+                        </div>
+                        <div class="hax-setting-row">
+                            <label>Score limit</label>
+                            <input type="number" id="score-limit" value="3" min="0" max="99">
+                        </div>
+                        <div class="hax-setting-row">
+                            <label>Stadium</label>
+                            <span id="stadium-name">Volley</span>
+                            <button id="btn-pick-stadium" class="hax-btn hax-btn-gray hax-small-btn">Pick</button>
+                        </div>
+                    </div>
+
+                    <button id="btn-start-match" class="hax-btn hax-btn-green hax-start-btn hidden">▶ Start game</button>
+                </div>
+
+                <div class="hax-team-col" id="box-blue" data-team="blue">
+                    <div class="hax-team-header hax-team-blue">
+                        <button class="hax-arrow-btn" id="btn-move-left">◀</button>
+                        <button class="hax-team-btn" data-team="blue">Blue</button>
+                    </div>
+                    <ul id="list-blue" class="hax-player-list"></ul>
+                </div>
+            </div>
+
+            <!-- Admin sidebar buttons -->
+            <div class="hax-admin-btns" id="admin-btn-panel">
+                <button id="btn-auto" class="hax-btn hax-btn-gray">Auto</button>
+                <button id="btn-rand" class="hax-btn hax-btn-gray">Rand</button>
+                <button id="btn-lock" class="hax-btn hax-btn-gray">🔒 Lock</button>
+                <button id="btn-reset" class="hax-btn hax-btn-gray">Reset</button>
+            </div>
+
+            <div class="hax-controls-hint">
+                <strong>Controls:</strong> Move: WASD or Arrows | Kick: X, Space | <em>Press ESC to hide this menu</em>
+            </div>
+        </div>
+
+        <!-- Game Canvas Area -->
+        <div id="game-area">
+            <div class="game-header">
+                <div id="score-display">0 - 0</div>
+                <div id="game-timer" class="game-timer">3:00</div>
+            </div>
+            <canvas id="gameCanvas" width="800" height="480"></canvas>
+
+            <!-- Fixed Chat -->
+            <div id="chat-container">
+                <div id="chat-log"></div>
+                <div id="chat-input-row">
+                    <input type="text" id="chat-input" placeholder="Press Enter to chat..." maxlength="100" autocomplete="off">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="context-menu" class="hax-context-menu hidden">
+        <div class="hax-cm-title" id="cm-player-name">Player</div>
+        <button id="cm-give-admin" class="hax-btn hax-btn-blue hax-cm-btn">Give Admin</button>
+        <button id="cm-kick" class="hax-btn hax-btn-red hax-cm-btn">Kick</button>
+        <button id="cm-close" class="hax-btn hax-btn-blue hax-cm-btn">Close</button>
+        <hr>
+        <button id="cm-move-red" class="hax-btn hax-btn-gray hax-cm-btn">→ Red</button>
+        <button id="cm-move-spect" class="hax-btn hax-btn-gray hax-cm-btn">→ Spect</button>
+        <button id="cm-move-blue" class="hax-btn hax-btn-gray hax-cm-btn">→ Blue</button>
+    </div>
+
+    <script type="module" src="game.js"></script>
+</body>
+</html>
